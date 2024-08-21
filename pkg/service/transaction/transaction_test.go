@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_Upsert(t *testing.T) {
+func TestManager_Upsert(t *testing.T) {
 	godotenv.Load("../../../.env/.env")
 
 	d, err := testutils.GetTestDb(t, "../../../migrations")
@@ -125,7 +125,7 @@ func Test_Upsert(t *testing.T) {
 	}
 }
 
-func Test_GetUserUSDC(t *testing.T) {
+func TestManager_GetUserUSDC(t *testing.T) {
 	godotenv.Load("../../../.env/.env")
 
 	d, err := testutils.GetTestDb(t, "../../../migrations")

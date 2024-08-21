@@ -11,7 +11,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func Test_GetOnboardingTask(t *testing.T) {
+func TestManager_GetOnboardingTask(t *testing.T) {
 	godotenv.Load("../../../.env/.env")
 
 	d, err := testutils.GetTestDb(t, "../../../migrations")
@@ -40,7 +40,7 @@ func Test_GetOnboardingTask(t *testing.T) {
 	assert.Equal(t, "onboarding", model.Name.String)
 }
 
-func Test_GetSharePoolTask(t *testing.T) {
+func TestManager_GetSharePoolTask(t *testing.T) {
 	godotenv.Load("../../../.env/.env")
 
 	d, err := testutils.GetTestDb(t, "../../../migrations")
