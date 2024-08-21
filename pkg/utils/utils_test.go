@@ -24,8 +24,9 @@ func Test_GetLastTimeOfWeek(t *testing.T) {
 	}
 
 	result := GetLastTimeOfWeek(d)
+
 	assert.Equal(t, result.Year(), 2024)
-	assert.Equal(t, result.Month(), 7)
+	assert.Equal(t, result.Month(), time.July)
 	assert.Equal(t, result.Day(), 7)
 	assert.Equal(t, result.Hour(), 23)
 	assert.Equal(t, result.Minute(), 59)
