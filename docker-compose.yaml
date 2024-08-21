@@ -1,0 +1,25 @@
+version: "3"
+
+services:
+  trading-postgres:
+    image: postgres:13
+    restart: always
+    env_file:
+      - .env/.env
+    # volumes:
+    #   - daniel-tradingAce-db-data:/var/lib/postgresql/data
+    ports:
+      - "54321:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "${POSTGRES_DB}", "-U", "${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - daniel-tradingAce-proxy
+
+# volumes:
+#   trading-db-data:
+networks:
+  daniel-tradingAce-proxy:
+    driver: bridge

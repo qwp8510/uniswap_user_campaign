@@ -1,0 +1,68 @@
+linters-settings:
+  dupl:
+    threshold: 150
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+  gocritic:
+    disabled-checks:
+      - ifElseChain
+  gofmt:
+    simplify: false
+  gomnd:
+    # don't include the "operation" and "assign"
+    checks:
+      - argument
+      - case
+      - condition
+      - return
+  govet:
+    check-shadowing: true
+  lll:
+    line-length: 120
+  misspell:
+    locale: US
+  nolintlint:
+    allow-unused: false # report any unused nolint directives
+    require-explanation: true # don't require an explanation for nolint directives
+    require-specific: true # don't require nolint directives to be specific about which linter is being skipped
+  gosec:
+    severity: medium
+    confidence: high
+  whitespace:
+    multi-if: true
+    multi-func: true
+
+linters:
+  disable-all: true
+  enable:
+    # - dupl
+    - errcheck
+    - goconst
+    - gocritic
+    - gofmt
+    - goimports
+    - gomnd
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nolintlint
+    - revive
+    - staticcheck
+    - stylecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+
+issues:
+  exclude-rules:
+    - path: '(.+)_test\.go'
+      linters:
+        - dupl
+
+run:
+  timeout: 5m
