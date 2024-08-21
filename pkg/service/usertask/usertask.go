@@ -207,7 +207,7 @@ func (m *Manager) upsert(ctx context.Context, address string, taskId string, sta
 
 func (m *Manager) getUserTask(ctx context.Context, address string, taskId string) (model.UserTask, error) {
 	query := `
-		SELECT "id", "createdAt", "userAddress", "taskId", "state"
+		SELECT "id", "createdAt", "userAddress", "taskId", "state", "amount"
 		FROM "userTask"
 		WHERE "userAddress" = $1 AND "taskId" = $2;
 	`
@@ -219,6 +219,7 @@ func (m *Manager) getUserTask(ctx context.Context, address string, taskId string
 		&userTask.UserAddress,
 		&userTask.TaskID,
 		&userTask.State,
+		&userTask.Amount,
 	)
 
 	return userTask, err
