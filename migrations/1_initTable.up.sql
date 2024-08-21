@@ -5,7 +5,8 @@ CREATE TABLE "userTask" (
     "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userAddress" VARCHAR(120) NOT NULL,
     "taskId" VARCHAR(32) NOT NULL,
-    "state" VARCHAR(15) NOT NULL
+    "state" VARCHAR(15) NOT NULL,
+    "amount" BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE "userPoint" (
@@ -13,8 +14,7 @@ CREATE TABLE "userPoint" (
     "userAddress" VARCHAR(120) NOT NULL,
     "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "taskId" VARCHAR(32) NOT NULL,
-    "point" INT NOT NULL DEFAULT 0,
-    "amount" BIGINT NOT NULL DEFAULT 0
+    "point" INT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE "task" (

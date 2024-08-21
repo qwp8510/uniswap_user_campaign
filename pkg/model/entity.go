@@ -8,14 +8,16 @@ import (
 )
 
 type UserTask struct {
-	ID          string    `json:"id"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UserAddress string    `json:"userAddress"`
-	TaskID      string    `json:"taskId"`
-	State       string    `json:"state"`
+	ID          string          `json:"id"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UserAddress string          `json:"userAddress"`
+	TaskID      string          `json:"taskId"`
+	State       string          `json:"state"`
+	Amount      decimal.Decimal `json:"amount"` // unit: usd
 }
 
 type UserPoint struct {
+	ID          string    `json:"id"`
 	UserAddress string    `json:"userAddress"`
 	CreatedAt   time.Time `json:"createdAt"`
 	TaskID      string    `json:"taskId"`
