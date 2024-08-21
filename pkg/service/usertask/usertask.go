@@ -174,7 +174,8 @@ func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error
 
 	// save point to
 	for sender, points := range senderPoints {
-		if err := m.upsert(ctx, sender, task.ID, state); err != nil {
+		// FIXME: replace decimal.NewFromInt(0)
+		if err := m.upsert(ctx, sender, task.ID, state, decimal.NewFromInt(0)); err != nil {
 			log.Printf("checkSharePoolTask upsert user task fail: %v", err)
 			continue
 		}
@@ -188,15 +189,15 @@ func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error
 	return nil
 }
 
-func (m *Manager) upsert(ctx context.Context, address string, taskId string, state string) error {
+func (m *Manager) upsert(ctx context.Context, address string, taskId string, state string, amount decimal.Decimal) error {
 	query := `
-		INSERT INTO userTask ("id", "userAddress", "taskId", "state", "createdAt")
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO "userTask" ("id", "userAddress", "taskId", "state", "createdAt", "amount")
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT ("userAddress", "taskId")
-		DO UPDATE SET "state" = EXCLUDED."state"
+		DO UPDATE SET "state" = EXCLUDED."state", "amount" = EXCLUDED."amount"
 	`
 
-	_, err := m.db.ExecContext(ctx, query, address, taskId, state, time.Now())
+	_, err := m.db.ExecContext(ctx, query, utils.GenDBID(), address, taskId, state, time.Now(), amount)
 	if err != nil {
 		return fmt.Errorf("failed to upsert user task: %w", err)
 	}
