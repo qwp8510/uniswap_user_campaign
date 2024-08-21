@@ -98,15 +98,29 @@ func TestManager_upsert(t *testing.T) {
 	}
 }
 
-// func TestManager_getUserTask(t *testing.T) {
-// 	godotenv.Load("../../../.env/.env")
+func TestManager_getUserTask(t *testing.T) {
+	godotenv.Load("../../../.env/.env")
 
-// 	d, err := testutils.GetTestDb(t, "../../../migrations")
-// 	if err != nil {
-// 		t.Errorf("setup db err: %v", err)
-// 		return
-// 	}
-// 	defer d.Close()
+	d, err := testutils.GetTestDb(t, "../../../migrations")
+	if err != nil {
+		t.Errorf("setup db err: %v", err)
+		return
+	}
+	defer d.Close()
 
-// 	mgr := Manager{db: d}
-// }
+	mgr := Manager{db: d}
+	if err := mgr.upsert(context.TODO(), "0x0000000000000000000000000000000000000000", "task1", "pending", decimal.NewFromInt(10)); err != nil {
+		t.Errorf("upsert err: %v", err)
+		return
+	}
+
+	model, err := mgr.getUserTask(context.TODO(), "0x0000000000000000000000000000000000000000", "task1")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	assert.Equal(t, "task1", model.TaskID)
+	assert.Equal(t, "pending", model.State)
+	assert.True(t, decimal.NewFromInt(10).Equal(model.Amount))
+}
