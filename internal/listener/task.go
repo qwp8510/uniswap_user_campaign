@@ -26,6 +26,7 @@ type SwapEventTask struct {
 	TaskMgr        iface.TaskManager
 	TransactionMgr iface.TransactionManager
 	UserTaskMgr    iface.UserTaskManager
+	client         *ethclient.Client
 }
 
 type swapEvent struct {
@@ -37,16 +38,6 @@ type swapEvent struct {
 
 func (t *SwapEventTask) Listen() {
 	ctx := context.Background()
-
-	subscribeUrl := "wss://mainnet.infura.io/ws/v3/" + os.Getenv("API_KEY")
-	if os.Getenv("SUBSCRIBE_MODE") == "http" {
-		subscribeUrl = "https://mainnet.infura.io/v3/" + os.Getenv("API_KEY")
-	}
-
-	client, err := ethclient.Dial(subscribeUrl)
-	if err != nil {
-		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
-	}
 
 	tasks, listErr := t.TaskMgr.GetSharePoolTask(ctx)
 	if listErr != nil {
@@ -66,7 +57,7 @@ func (t *SwapEventTask) Listen() {
 
 		go func(task model.Task) {
 			defer wg.Done()
-			if err := t.subscribeToPool(ctx, client, contractABI, task); err != nil {
+			if err := t.subscribeToPool(ctx, contractABI, task); err != nil {
 				log.Printf("subscribeToPool error: %s", err)
 				return
 			}
@@ -77,7 +68,7 @@ func (t *SwapEventTask) Listen() {
 }
 
 func (t *SwapEventTask) subscribeToPool(
-	ctx context.Context, client *ethclient.Client, contractABI abi.ABI, task model.Task,
+	ctx context.Context, contractABI abi.ABI, task model.Task,
 ) error {
 
 	log.Println("syncing history event...")
@@ -93,9 +84,9 @@ func (t *SwapEventTask) subscribeToPool(
 	}
 
 	if os.Getenv("SUBSCRIBE_MODE") == "http" {
-		t.subscribeByHTTP(ctx, client, contractABI, task, latestBlockNum)
+		t.subscribeByHTTP(ctx, contractABI, task, latestBlockNum)
 	} else {
-		t.subscribeByWS(ctx, client, contractABI, task, latestBlockNum)
+		t.subscribeByWS(ctx, contractABI, task, latestBlockNum)
 	}
 
 	return nil
@@ -103,7 +94,6 @@ func (t *SwapEventTask) subscribeToPool(
 
 func (t *SwapEventTask) subscribeByWS(
 	ctx context.Context,
-	client *ethclient.Client,
 	contractABI abi.ABI,
 	task model.Task,
 	startBlock *big.Int,
@@ -120,7 +110,7 @@ func (t *SwapEventTask) subscribeByWS(
 
 	// Subscribe to Swap events
 	logs := make(chan types.Log)
-	sub, err := client.SubscribeFilterLogs(ctx, query, logs)
+	sub, err := t.client.SubscribeFilterLogs(ctx, query, logs)
 	if err != nil {
 		log.Fatalf("Failed to subscribe to logs: %v", err)
 	}
@@ -134,7 +124,7 @@ func (t *SwapEventTask) subscribeByWS(
 			log.Fatalf("Subscription error: %v", err)
 		case vLog := <-logs:
 			count += 1
-			if stop, err := t.isStopTask(ctx, client, vLog, endAt); stop || err != nil {
+			if stop, err := t.isStopTask(ctx, vLog, endAt); stop || err != nil {
 				log.Fatalf("Subscription isStopTask error: %v", err)
 			}
 
@@ -146,14 +136,13 @@ func (t *SwapEventTask) subscribeByWS(
 
 func (t *SwapEventTask) subscribeByHTTP(
 	ctx context.Context,
-	client *ethclient.Client,
 	contractABI abi.ABI,
 	task model.Task,
 	startBlock *big.Int,
 ) {
 
 	for {
-		latestBlock, err := client.BlockByNumber(context.Background(), nil)
+		latestBlock, err := t.client.BlockByNumber(context.Background(), nil)
 		if err != nil {
 			log.Fatalf("Failed to get latest block: %v", err)
 		}
@@ -167,7 +156,7 @@ func (t *SwapEventTask) subscribeByHTTP(
 			Topics:    [][]common.Hash{{contractABI.Events["Swap"].ID}},
 		}
 
-		logs, err := client.FilterLogs(context.Background(), query)
+		logs, err := t.client.FilterLogs(context.Background(), query)
 		if err != nil {
 			log.Fatalf("Failed to filter logs: %v", err)
 		}
@@ -189,7 +178,6 @@ func (t *SwapEventTask) syncHistoryEvent(
 	ctx context.Context, contractABI abi.ABI, task model.Task,
 ) (latestBlockNum *big.Int, err error) {
 
-	fmt.Println("https://mainnet.infura.io/v3/" + os.Getenv("API_KEY"))
 	client, err := ethclient.Dial("https://mainnet.infura.io/v3/" + os.Getenv("API_KEY"))
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
@@ -268,11 +256,11 @@ func (t *SwapEventTask) getTaskEndAt(startAt time.Time) time.Time {
 }
 
 func (t *SwapEventTask) isStopTask(
-	ctx context.Context, client *ethclient.Client, vLog types.Log, endAt time.Time,
+	ctx context.Context, vLog types.Log, endAt time.Time,
 ) (bool, error) {
 
 	b := big.NewInt(int64(vLog.BlockNumber))
-	block, err := client.BlockByNumber(ctx, b)
+	block, err := t.client.BlockByNumber(ctx, b)
 	if err != nil {
 		return false, err
 	}
@@ -318,6 +306,11 @@ func (t *SwapEventTask) handleEvent(ctx context.Context, vLog types.Log, contrac
 		log.Printf("Failed to big int to decimal: %v", err)
 		return
 	}
+	block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
+	if err != nil {
+		log.Printf("Failed toget block: %v", err)
+		return
+	}
 
 	opt := option.TransactionUpsertOptions{
 		BlockNum:        vLog.BlockNumber,
@@ -328,6 +321,7 @@ func (t *SwapEventTask) handleEvent(ctx context.Context, vLog types.Log, contrac
 		Amount0Out:      amount0Out,
 		Amount1Out:      amount1Out,
 		ReceiverAddress: to.Hex(),
+		TransactionAt:   time.Unix(int64(block.Time()), 0),
 	}
 	err = t.TransactionMgr.Upsert(ctx, opt)
 	if err != nil {
@@ -374,4 +368,34 @@ func (t *SwapEventTask) getBlockByTimestamp(ctx context.Context, client *ethclie
 
 	blockNumber = start
 	return blockNumber, nil
+}
+
+func (t *SwapEventTask) newClient() {
+	subscribeUrl := "wss://mainnet.infura.io/ws/v3/" + os.Getenv("API_KEY")
+	if os.Getenv("SUBSCRIBE_MODE") == "http" {
+		subscribeUrl = "https://mainnet.infura.io/v3/" + os.Getenv("API_KEY")
+	}
+
+	client, err := ethclient.Dial(subscribeUrl)
+	if err != nil {
+		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	}
+
+	t.client = client
+}
+
+func NewTaskListener(
+	taskMgr iface.TaskManager,
+	transactionMgr iface.TransactionManager,
+	userTaskMgr iface.UserTaskManager,
+) *SwapEventTask {
+
+	s := &SwapEventTask{
+		TaskMgr:        taskMgr,
+		TransactionMgr: transactionMgr,
+		UserTaskMgr:    userTaskMgr,
+	}
+
+	s.newClient()
+	return s
 }
