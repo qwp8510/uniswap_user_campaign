@@ -32,10 +32,11 @@ CREATE TABLE "transaction" (
     "pairAddress" VARCHAR(120) NOT NULL,
     "senderAddress" VARCHAR(120) NOT NULL,
     "amount0In" NUMERIC(38, 18) NOT NULL DEFAULT 0,
-    "amount1In" NUMERIC(38, 18) NOT NULL DEFAULT 0,
+    "amount1In" NUMERIC(50, 18) NOT NULL DEFAULT 0,
     "amount0Out" NUMERIC(38, 18) NOT NULL DEFAULT 0,
-    "amount1Out" NUMERIC(38, 18) NOT NULL DEFAULT 0,
-    "receiverAddress" VARCHAR(120) NOT NULL
+    "amount1Out" NUMERIC(50, 18) NOT NULL DEFAULT 0,
+    "receiverAddress" VARCHAR(120) NOT NULL,
+    "transactionAt" TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE UNIQUE INDEX "unique_pairAddress" ON task("pairAddress");

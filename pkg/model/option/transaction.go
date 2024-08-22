@@ -1,6 +1,8 @@
 package option
 
 import (
+	"time"
+
 	"github.com/shopspring/decimal"
 )
 
@@ -13,4 +15,5 @@ type TransactionUpsertOptions struct {
 	Amount0Out      decimal.Decimal
 	Amount1Out      decimal.Decimal
 	ReceiverAddress string
+	TransactionAt   time.Time
 }

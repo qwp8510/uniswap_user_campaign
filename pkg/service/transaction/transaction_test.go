@@ -3,6 +3,7 @@ package transaction
 import (
 	"context"
 	"testing"
+	"time"
 	"tradingAce/internal/testutils"
 	"tradingAce/pkg/model"
 	"tradingAce/pkg/model/option"
@@ -21,6 +22,12 @@ func TestManager_Upsert(t *testing.T) {
 		return
 	}
 	defer d.Close()
+
+	transactionAt, parseErr := time.Parse("2006-01-02", "2024-07-02")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
 
 	type args struct {
 		ctx context.Context
@@ -44,6 +51,7 @@ func TestManager_Upsert(t *testing.T) {
 					Amount0Out:      decimal.NewFromInt(30),
 					Amount1Out:      decimal.NewFromInt(40),
 					ReceiverAddress: "0x0000000000000000000000000000000000000000",
+					TransactionAt:   transactionAt,
 				},
 			},
 			want: model.Transaction{
@@ -55,6 +63,7 @@ func TestManager_Upsert(t *testing.T) {
 				Amount0Out:      decimal.NewFromInt(30),
 				Amount1Out:      decimal.NewFromInt(40),
 				ReceiverAddress: "0x0000000000000000000000000000000000000000",
+				TransactionAt:   transactionAt,
 			},
 		},
 		{
@@ -70,6 +79,7 @@ func TestManager_Upsert(t *testing.T) {
 					Amount0Out:      decimal.NewFromInt(66),
 					Amount1Out:      decimal.NewFromInt(77),
 					ReceiverAddress: "0x0000000000000000000000000000000000000000",
+					TransactionAt:   transactionAt,
 				},
 			},
 			want: model.Transaction{
@@ -81,6 +91,7 @@ func TestManager_Upsert(t *testing.T) {
 				Amount0Out:      decimal.NewFromInt(66),
 				Amount1Out:      decimal.NewFromInt(77),
 				ReceiverAddress: "0x0000000000000000000000000000000000000000",
+				TransactionAt:   transactionAt,
 			},
 		},
 	}
@@ -95,7 +106,7 @@ func TestManager_Upsert(t *testing.T) {
 
 			var result model.Transaction
 			if err := d.QueryRow(`
-				SELECT "blockNum", "pairAddress", "senderAddress", "amount0In", "amount1In", "amount0Out", "amount1Out", "receiverAddress"
+				SELECT "blockNum", "pairAddress", "senderAddress", "amount0In", "amount1In", "amount0Out", "amount1Out", "receiverAddress", "transactionAt"
 				FROM transaction 
 				WHERE "pairAddress" = $1 and "blockNum" = $2`,
 				tt.args.opt.PairAddress,
@@ -109,6 +120,7 @@ func TestManager_Upsert(t *testing.T) {
 				&result.Amount0Out,
 				&result.Amount1Out,
 				&result.ReceiverAddress,
+				&result.TransactionAt,
 			); err != nil {
 				t.Errorf("Upsert() query error = %v", err)
 			}
@@ -121,6 +133,7 @@ func TestManager_Upsert(t *testing.T) {
 			assert.True(t, tt.want.Amount0Out.Equal(result.Amount0Out))
 			assert.True(t, tt.want.Amount1Out.Equal(result.Amount1Out))
 			assert.Equal(t, tt.want.ReceiverAddress, result.ReceiverAddress)
+			assert.True(t, tt.want.TransactionAt.Equal(result.TransactionAt))
 		})
 	}
 }

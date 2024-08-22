@@ -43,4 +43,5 @@ type Transaction struct {
 	Amount0Out      decimal.Decimal `json:"amount0Out"`
 	Amount1Out      decimal.Decimal `json:"amount1Out"`
 	ReceiverAddress string          `json:"receiverAddress"`
+	TransactionAt   time.Time       `json:"transactionAt"`
 }

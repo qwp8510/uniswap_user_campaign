@@ -17,8 +17,8 @@ type Manager struct {
 func (m *Manager) Upsert(ctx context.Context, opt option.TransactionUpsertOptions) error {
 	query := `
 		INSERT INTO transaction ("id", "blockNum", "pairAddress", "senderAddress", "amount0In", "amount1In", 
-        	"amount0Out", "amount1Out", "receiverAddress")
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        	"amount0Out", "amount1Out", "receiverAddress", "transactionAt")
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT ("blockNum", "pairAddress") 
 		DO UPDATE SET
 			"senderAddress" = EXCLUDED."senderAddress",
@@ -26,7 +26,8 @@ func (m *Manager) Upsert(ctx context.Context, opt option.TransactionUpsertOption
 			"amount1In" = EXCLUDED."amount1In",
 			"amount0Out" = EXCLUDED."amount0Out",
 			"amount1Out" = EXCLUDED."amount1Out",
-			"receiverAddress" = EXCLUDED."receiverAddress"
+			"receiverAddress" = EXCLUDED."receiverAddress",
+			"transactionAt" = EXCLUDED."transactionAt"
 	`
 
 	fmt.Println("in upsert")
@@ -41,6 +42,7 @@ func (m *Manager) Upsert(ctx context.Context, opt option.TransactionUpsertOption
 		opt.Amount0Out,
 		opt.Amount1Out,
 		opt.ReceiverAddress,
+		opt.TransactionAt,
 	)
 	fmt.Println("out upsert")
 
