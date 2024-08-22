@@ -123,11 +123,19 @@ func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error
 		}
 
 		rows, err := m.db.Query(`
-			 SELECT sender, SUM(amount0In) AS totalAmount0In, SUM(amount1In) AS totalAmount1In
-			 FROM transaction
-			 WHERE timestamp >= $1 AND timestamp < $2
-			 GROUP BY sender
-		`, startTime, endTime)
+			SELECT t."senderAddress" AS "senderAddress", 
+				SUM(t."amount0In") AS "totalAmount0In", 
+				SUM(t."amount1In") AS "totalAmount1In"
+			FROM transaction t
+			JOIN "userTask" ut 
+				ON t."senderAddress" = ut."userAddress"
+			WHERE t."transactionAt" >= $1 
+				AND t."transactionAt" < $2
+				AND t."pairAddress" = $3
+				AND ut."taskId" = $4
+				AND ut.state = 'completed'
+			GROUP BY t."senderAddress";
+		`, startTime, endTime, task.PairAddress, onboardingTask.ID)
 		if err != nil {
 			return fmt.Errorf("checkSharePoolTask query sum transaction: %v", err)
 		}
@@ -158,6 +166,7 @@ func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error
 
 		for sender, volume := range senderVolumes {
 			if !totalVolumeUSD.IsZero() {
+				fmt.Println(sender, volume, totalVolumeUSD)
 				proportion := volume.Div(totalVolumeUSD)
 				points := proportion.Mul(constants.PointsPerWeek)
 				senderPoints[sender] = senderPoints[sender].Add(points)
@@ -174,8 +183,7 @@ func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error
 
 	// save point to
 	for sender, points := range senderPoints {
-		// FIXME: replace decimal.NewFromInt(0)
-		if err := m.upsert(ctx, sender, task.ID, state, decimal.NewFromInt(0)); err != nil {
+		if err := m.Upsert(ctx, sender, task.ID, state, senderAmounts[sender]); err != nil {
 			log.Printf("checkSharePoolTask upsert user task fail: %v", err)
 			continue
 		}
@@ -189,7 +197,7 @@ func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error
 	return nil
 }
 
-func (m *Manager) upsert(ctx context.Context, address string, taskId string, state string, amount decimal.Decimal) error {
+func (m *Manager) Upsert(ctx context.Context, address string, taskId string, state string, amount decimal.Decimal) error {
 	query := `
 		INSERT INTO "userTask" ("id", "userAddress", "taskId", "state", "createdAt", "amount")
 		VALUES ($1, $2, $3, $4, $5, $6)

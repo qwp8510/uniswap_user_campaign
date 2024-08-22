@@ -2,14 +2,33 @@ package usertask
 
 import (
 	"context"
+	"database/sql"
 	"testing"
+	"time"
 	"tradingAce/internal/testutils"
+	"tradingAce/pkg/constants"
 	"tradingAce/pkg/model"
+	"tradingAce/pkg/model/option"
+	"tradingAce/pkg/service/task"
+	"tradingAce/pkg/service/transaction"
+	"tradingAce/pkg/service/userpoint"
 
 	"github.com/joho/godotenv"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
+
+func setOnbardingTask() *model.Task {
+	onboardingTask = &model.Task{
+		ID:          "onboardingtask",
+		CreatedAt:   time.Now(),
+		Name:        sql.NullString{String: "onboarding", Valid: true},
+		PairAddress: sql.NullString{},
+		StartAt:     time.Now(),
+	}
+
+	return onboardingTask
+}
 
 func TestManager_upsert(t *testing.T) {
 	godotenv.Load("../../../.env/.env")
@@ -70,8 +89,8 @@ func TestManager_upsert(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mgr := Manager{db: d}
-			if err := mgr.upsert(context.TODO(), tt.args.address, tt.args.taskId, tt.args.state, tt.args.amount); err != nil {
-				t.Errorf("upsert err: %v", err)
+			if err := mgr.Upsert(context.TODO(), tt.args.address, tt.args.taskId, tt.args.state, tt.args.amount); err != nil {
+				t.Errorf("Upsert err: %v", err)
 				return
 			}
 
@@ -109,8 +128,8 @@ func TestManager_getUserTask(t *testing.T) {
 	defer d.Close()
 
 	mgr := Manager{db: d}
-	if err := mgr.upsert(context.TODO(), "0x0000000000000000000000000000000000000000", "task1", "pending", decimal.NewFromInt(10)); err != nil {
-		t.Errorf("upsert err: %v", err)
+	if err := mgr.Upsert(context.TODO(), "0x0000000000000000000000000000000000000000", "task1", "pending", decimal.NewFromInt(10)); err != nil {
+		t.Errorf("Upsert err: %v", err)
 		return
 	}
 
@@ -123,4 +142,229 @@ func TestManager_getUserTask(t *testing.T) {
 	assert.Equal(t, "task1", model.TaskID)
 	assert.Equal(t, "pending", model.State)
 	assert.True(t, decimal.NewFromInt(10).Equal(model.Amount))
+}
+
+func TestManager_checkSharePoolTask(t *testing.T) {
+	godotenv.Load("../../../.env/.env")
+
+	d, err := testutils.GetTestDb(t, "../../../migrations")
+	if err != nil {
+		t.Errorf("setup db err: %v", err)
+		return
+	}
+	defer d.Close()
+
+	ctx := context.TODO()
+
+	trMgr := transaction.NewManager(d)
+	mgr := Manager{
+		db:             d,
+		taskMgr:        task.NewManager(d),
+		transactionMgr: trMgr,
+		userPointMgr:   userpoint.NewManager(d),
+	}
+
+	sender1 := "0x0000000000000000000000000000000000000000"
+	sender2 := "0x0000000000000000000000000000000000000001"
+	senderNoOnboarding := "0x0000000000000000000000000000000000000002"
+
+	// init test transaction data
+	transactionAt1, parseErr := time.Parse("2006-01-02", "2024-07-02")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
+	transactionAt2, parseErr := time.Parse("2006-01-02", "2024-07-12")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
+	transactionAtOutOfRange, parseErr := time.Parse("2006-01-02", "2024-06-12")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
+
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        1,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender1,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(1000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(50)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        2,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender1,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(1000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(0)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt2,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        3,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender2,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(1000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(10)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        3,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender2,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(4000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(10)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	// diffrent PairAddress
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        4,
+		PairAddress:     "0xnotReelAddress",
+		SenderAddress:   sender2,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(80000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(0)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	// out of transaction range
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        40,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender2,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(80000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(0)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAtOutOfRange,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        9999,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   senderNoOnboarding,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(99999)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(99999)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+
+	// init sender onboarding user task
+	onboardingTask := setOnbardingTask()
+	if err := mgr.Upsert(ctx, sender1, onboardingTask.ID, "completed", decimal.NewFromInt(1000)); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := mgr.Upsert(ctx, sender2, onboardingTask.ID, "completed", decimal.NewFromInt(1030)); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+
+	startAt, parseErr := time.Parse("2006-01-02", "2024-07-01")
+	if parseErr != nil {
+		t.Errorf("Parse err: %v", err)
+		return
+	}
+
+	sharePoolTask := model.Task{
+		ID:        "sharePoolTask",
+		CreatedAt: time.Now(),
+		Name:      sql.NullString{String: "share_pool", Valid: true},
+		PairAddress: sql.NullString{
+			String: "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+			Valid:  true,
+		},
+		StartAt: startAt,
+	}
+	if err := mgr.checkSharePoolTask(ctx, sharePoolTask); err != nil {
+		t.Errorf("checkSharePoolTask err: %v", err)
+	}
+
+	ut1, ut1Err := mgr.getUserTask(ctx, sender1, sharePoolTask.ID)
+	if ut1Err != nil {
+		t.Errorf("getUserTask 1 err: %v", ut1Err)
+		return
+	}
+	assert.Equal(t, sharePoolTask.ID, ut1.TaskID)
+	assert.Equal(t, "completed", ut1.State)
+	var result1 model.UserPoint
+	if err := d.QueryRow(
+		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
+		WHERE "userAddress"=$1 AND "taskId"=$2`,
+		sender1, sharePoolTask.ID,
+	).Scan(
+		&result1.UserAddress,
+		&result1.TaskID,
+		&result1.Point,
+	); err != nil {
+		t.Errorf("get user point query error = %v", err)
+		return
+	}
+	assert.Equal(t, sender1, result1.UserAddress)
+	assert.Equal(t, sharePoolTask.ID, result1.TaskID)
+	assert.Equal(t, 18080, result1.Point)
+
+	ut2, ut2Err := mgr.getUserTask(ctx, sender2, sharePoolTask.ID)
+	if ut2Err != nil {
+		t.Errorf("getUserTask 2 err: %v", ut2Err)
+		return
+	}
+	assert.Equal(t, sharePoolTask.ID, ut2.TaskID)
+	assert.Equal(t, "completed", ut2.State)
+	var result2 model.UserPoint
+	if err := d.QueryRow(
+		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
+		WHERE "userAddress"=$1 AND "taskId"=$2`,
+		sender2, sharePoolTask.ID,
+	).Scan(
+		&result2.UserAddress,
+		&result2.TaskID,
+		&result2.Point,
+	); err != nil {
+		t.Errorf("get user point query error = %v", err)
+		return
+	}
+	assert.Equal(t, sender2, result2.UserAddress)
+	assert.Equal(t, sharePoolTask.ID, result2.TaskID)
+	assert.Equal(t, 1920, result2.Point)
+
+	_, ut3Err := mgr.getUserTask(ctx, senderNoOnboarding, sharePoolTask.ID)
+	assert.EqualError(t, ut3Err, sql.ErrNoRows.Error())
 }

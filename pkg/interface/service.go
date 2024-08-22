@@ -16,6 +16,7 @@ type TaskManager interface {
 type UserTaskManager interface {
 	CheckOnboardingTask(ctx context.Context, address string) error
 	CheckSharePoolTasks(ctx context.Context) error
+	Upsert(ctx context.Context, address string, taskId string, state string, amount decimal.Decimal) error
 }
 
 type TransactionManager interface {
