@@ -60,7 +60,7 @@ func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error
 		return fmt.Errorf("failed to GetUserUSDC: %v", err)
 	}
 
-	threshold := decimal.NewFromFloat(1000.00) // 1000 USDC
+	threshold := decimal.NewFromFloat(1000.00).Mul(constants.UsdcPrecision) // 1000 USDC
 	if amount.GreaterThanOrEqual(threshold) {
 		userTask.State = "completed"
 	}
@@ -71,9 +71,14 @@ func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error
 			VALUES ($1, $2, $3, $4);
 		`
 
-		row := m.db.QueryRowContext(ctx, query, userTask.ID, userTask.UserAddress, userTask.TaskID, userTask.State)
-		if row.Err() != nil {
+		_, err := m.db.ExecContext(ctx, query, userTask.ID, userTask.UserAddress, userTask.TaskID, userTask.State)
+		if err != nil {
 			return fmt.Errorf("failed to create user task: %v", err)
+		}
+		if userTask.State == "completed" {
+			if err := m.userPointMgr.UpsertForUserTask(ctx, userTask.UserAddress, onboardingTask.ID, constants.OnboardingPoint); err != nil {
+				log.Printf("checkSharePoolTask upsert point fail: %v", err)
+			}
 		}
 	} else {
 		query := `
@@ -83,6 +88,11 @@ func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error
 		_, err := m.db.ExecContext(ctx, query, userTask.State, userTask.ID)
 		if err != nil {
 			return fmt.Errorf("failed to update user task: %v", err)
+		}
+		if userTask.State == "completed" {
+			if err := m.userPointMgr.UpsertForUserTask(ctx, userTask.UserAddress, onboardingTask.ID, constants.OnboardingPoint); err != nil {
+				log.Printf("checkSharePoolTask upsert point fail: %v", err)
+			}
 		}
 	}
 
