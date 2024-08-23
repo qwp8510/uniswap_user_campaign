@@ -55,3 +55,5 @@ var (
 )
 
 var PointsPerWeek = decimal.NewFromInt(10000)
+
+const OnboardingPoint = 100
