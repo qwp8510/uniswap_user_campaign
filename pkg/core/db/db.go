@@ -30,6 +30,7 @@ func SetupDB() (*sql.DB, error) {
 		log.Fatal(err)
 	}
 	d.SetConnMaxLifetime(time.Minute * 3)
+	d.SetConnMaxIdleTime(15 * time.Minute)
 	d.SetMaxOpenConns(10)
 	d.SetMaxIdleConns(10)
 	err = d.Ping()
