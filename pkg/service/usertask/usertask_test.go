@@ -368,3 +368,183 @@ func TestManager_checkSharePoolTask(t *testing.T) {
 	_, ut3Err := mgr.getUserTask(ctx, senderNoOnboarding, sharePoolTask.ID)
 	assert.EqualError(t, ut3Err, sql.ErrNoRows.Error())
 }
+
+func TestManager_CheckOnboardingTask(t *testing.T) {
+	godotenv.Load("../../../.env/.env")
+
+	d, err := testutils.GetTestDb(t, "../../../migrations")
+	if err != nil {
+		t.Errorf("setup db err: %v", err)
+		return
+	}
+	defer d.Close()
+
+	ctx := context.TODO()
+
+	trMgr := transaction.NewManager(d)
+	mgr := Manager{
+		db:             d,
+		taskMgr:        task.NewManager(d),
+		transactionMgr: trMgr,
+		userPointMgr:   userpoint.NewManager(d),
+	}
+
+	sender1 := "0x0000000000000000000000000000000000000000"
+	sender2 := "0x0000000000000000000000000000000000000001"
+	senderNoOnboarding := "0xnononononon"
+
+	// init transaction
+	transactionAt1, parseErr := time.Parse("2006-01-02", "2024-07-02")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
+	transactionAt2, parseErr := time.Parse("2006-01-02", "2024-07-12")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
+	transactionAtOutOfRange, parseErr := time.Parse("2006-01-02", "2024-06-12")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
+
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        1,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender1,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(700)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(50)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        2,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender1,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(400)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(0)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt2,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        3,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender2,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(1000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(10)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        999,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   senderNoOnboarding,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(500)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(1000)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAtOutOfRange,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+
+	onboardingTask := setOnbardingTask()
+
+	if err := mgr.CheckOnboardingTask(ctx, sender1); err != nil {
+		t.Errorf("CheckOnboardingTask err: %v", err)
+		return
+	}
+	ut1, ut1Err := mgr.getUserTask(ctx, sender1, onboardingTask.ID)
+	if ut1Err != nil {
+		t.Errorf("getUserTask 1 err: %v", ut1Err)
+		return
+	}
+	assert.Equal(t, onboardingTask.ID, ut1.TaskID)
+	assert.Equal(t, "completed", ut1.State)
+	var result1 model.UserPoint
+	if err := d.QueryRow(
+		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
+		WHERE "userAddress"=$1 AND "taskId"=$2`,
+		sender1, onboardingTask.ID,
+	).Scan(
+		&result1.UserAddress,
+		&result1.TaskID,
+		&result1.Point,
+	); err != nil {
+		t.Errorf("get user point query error = %v", err)
+		return
+	}
+	assert.Equal(t, sender1, result1.UserAddress)
+	assert.Equal(t, onboardingTask.ID, result1.TaskID)
+	assert.Equal(t, constants.OnboardingPoint, result1.Point)
+
+	if err := mgr.CheckOnboardingTask(ctx, sender2); err != nil {
+		t.Errorf("CheckOnboardingTask err: %v", err)
+		return
+	}
+	ut2, ut2Err := mgr.getUserTask(ctx, sender2, onboardingTask.ID)
+	if ut2Err != nil {
+		t.Errorf("getUserTask 2 err: %v", ut2Err)
+		return
+	}
+	assert.Equal(t, onboardingTask.ID, ut2.TaskID)
+	assert.Equal(t, "completed", ut2.State)
+	var result2 model.UserPoint
+	if err := d.QueryRow(
+		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
+		WHERE "userAddress"=$1 AND "taskId"=$2`,
+		sender2, onboardingTask.ID,
+	).Scan(
+		&result2.UserAddress,
+		&result2.TaskID,
+		&result2.Point,
+	); err != nil {
+		t.Errorf("get user point query error = %v", err)
+		return
+	}
+	assert.Equal(t, sender2, result2.UserAddress)
+	assert.Equal(t, onboardingTask.ID, result2.TaskID)
+	assert.Equal(t, constants.OnboardingPoint, result2.Point)
+
+	if err := mgr.CheckOnboardingTask(ctx, senderNoOnboarding); err != nil {
+		t.Errorf("CheckOnboardingTask err: %v", err)
+		return
+	}
+	ut3, ut3Err := mgr.getUserTask(ctx, senderNoOnboarding, onboardingTask.ID)
+	if ut3Err != nil {
+		t.Errorf("getUserTask 3 err: %v", ut3Err)
+		return
+	}
+	assert.Equal(t, onboardingTask.ID, ut3.TaskID)
+	assert.Equal(t, "pending", ut3.State)
+	var result3 model.UserPoint
+	result3Err := d.QueryRow(
+		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
+		WHERE "userAddress"=$1 AND "taskId"=$2`,
+		senderNoOnboarding, onboardingTask.ID,
+	).Scan(
+		&result3.UserAddress,
+		&result3.TaskID,
+		&result3.Point,
+	)
+	assert.EqualError(t, result3Err, sql.ErrNoRows.Error())
+}
