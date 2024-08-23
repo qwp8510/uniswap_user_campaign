@@ -28,11 +28,6 @@ func runTaskListener(_ *cobra.Command, _ []string) {
 
 	s := service.NewService(d)
 
-	taskListener := listener.SwapEventTask{
-		TaskMgr:        s.Task,
-		TransactionMgr: s.Transaction,
-		UserTaskMgr:    s.UserTask,
-	}
-
+	taskListener := listener.NewTaskListener(s.Task, s.Transaction, s.UserTask)
 	taskListener.Listen()
 }
