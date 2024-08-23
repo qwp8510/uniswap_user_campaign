@@ -31,7 +31,8 @@ func (m *Manager) Upsert(ctx context.Context, opt option.TransactionUpsertOption
 	`
 
 	fmt.Println("in upsert")
-	row := m.db.QueryRow(
+	_, err := m.db.ExecContext(
+		ctx,
 		query,
 		utils.GenDBID(),
 		opt.BlockNum,
@@ -46,7 +47,7 @@ func (m *Manager) Upsert(ctx context.Context, opt option.TransactionUpsertOption
 	)
 	fmt.Println("out upsert")
 
-	return row.Err()
+	return err
 }
 
 func (m *Manager) GetUserUSDC(ctx context.Context, address string) (decimal.Decimal, error) {
