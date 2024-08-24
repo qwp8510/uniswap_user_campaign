@@ -369,6 +369,94 @@ func TestManager_checkSharePoolTask(t *testing.T) {
 	assert.EqualError(t, ut3Err, sql.ErrNoRows.Error())
 }
 
+func TestManager_checkSharePoolTaskNotFinished(t *testing.T) {
+	godotenv.Load("../../../.env/.env")
+
+	d, err := testutils.GetTestDb(t, "../../../migrations")
+	if err != nil {
+		t.Errorf("setup db err: %v", err)
+		return
+	}
+	defer d.Close()
+
+	ctx := context.TODO()
+
+	trMgr := transaction.NewManager(d)
+	mgr := Manager{
+		db:             d,
+		taskMgr:        task.NewManager(d),
+		transactionMgr: trMgr,
+		userPointMgr:   userpoint.NewManager(d),
+	}
+
+	sender1 := "0x0000000000000000000000000000000000000000"
+
+	now := time.Now()
+	transactionAt1 := now.AddDate(0, 0, -13)
+	twoWeeksAgo := now.AddDate(0, 0, -14)
+
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        1,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender1,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(1000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(50)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+
+	// init sender onboarding user task
+	onboardingTask := setOnbardingTask()
+	if err := mgr.Upsert(ctx, sender1, onboardingTask.ID, "completed", decimal.NewFromInt(1000)); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+
+	sharePoolTask := model.Task{
+		ID:        "sharePoolTask",
+		CreatedAt: time.Now(),
+		Name:      sql.NullString{String: "share_pool", Valid: true},
+		PairAddress: sql.NullString{
+			String: "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+			Valid:  true,
+		},
+		StartAt: twoWeeksAgo,
+	}
+	if err := mgr.checkSharePoolTask(ctx, sharePoolTask); err != nil {
+		t.Errorf("checkSharePoolTask err: %v", err)
+		return
+	}
+
+	ut1, ut1Err := mgr.getUserTask(ctx, sender1, sharePoolTask.ID)
+	if ut1Err != nil {
+		t.Errorf("getUserTask 1 err: %v", ut1Err)
+		return
+	}
+	assert.Equal(t, sharePoolTask.ID, ut1.TaskID)
+	assert.Equal(t, "pending", ut1.State)
+	var result1 model.UserPoint
+	if err := d.QueryRow(
+		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
+		WHERE "userAddress"=$1 AND "taskId"=$2`,
+		sender1, sharePoolTask.ID,
+	).Scan(
+		&result1.UserAddress,
+		&result1.TaskID,
+		&result1.Point,
+	); err != nil {
+		t.Errorf("get user point query error = %v", err)
+		return
+	}
+	assert.Equal(t, sender1, result1.UserAddress)
+	assert.Equal(t, sharePoolTask.ID, result1.TaskID)
+	assert.Equal(t, 10000, result1.Point)
+}
+
 func TestManager_CheckOnboardingTask(t *testing.T) {
 	godotenv.Load("../../../.env/.env")
 
