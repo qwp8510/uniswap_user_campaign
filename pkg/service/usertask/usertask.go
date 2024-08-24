@@ -34,7 +34,6 @@ func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error
 		onboardingTask = &t
 	}
 
-	fmt.Println("in check")
 	notExist := false
 	userTask, err := m.getUserTask(ctx, address, onboardingTask.ID)
 	if err != nil {
@@ -95,8 +94,6 @@ func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error
 			}
 		}
 	}
-
-	fmt.Println("out check")
 
 	return nil
 }
