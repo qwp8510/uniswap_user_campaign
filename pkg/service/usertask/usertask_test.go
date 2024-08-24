@@ -392,7 +392,7 @@ func TestManager_checkSharePoolTaskNotFinished(t *testing.T) {
 	sender1 := "0x0000000000000000000000000000000000000000"
 
 	now := time.Now()
-	transactionAt1 := now.AddDate(0, 0, -13)
+	transactionAt1 := now.AddDate(0, 0, -10)
 	twoWeeksAgo := now.AddDate(0, 0, -14)
 
 	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
@@ -418,7 +418,7 @@ func TestManager_checkSharePoolTaskNotFinished(t *testing.T) {
 	}
 
 	sharePoolTask := model.Task{
-		ID:        "sharePoolTask",
+		ID:        "checkSharePoolTaskNotFinished",
 		CreatedAt: time.Now(),
 		Name:      sql.NullString{String: "share_pool", Valid: true},
 		PairAddress: sql.NullString{
@@ -427,6 +427,7 @@ func TestManager_checkSharePoolTaskNotFinished(t *testing.T) {
 		},
 		StartAt: twoWeeksAgo,
 	}
+
 	if err := mgr.checkSharePoolTask(ctx, sharePoolTask); err != nil {
 		t.Errorf("checkSharePoolTask err: %v", err)
 		return
@@ -635,4 +636,84 @@ func TestManager_CheckOnboardingTask(t *testing.T) {
 		&result3.Point,
 	)
 	assert.EqualError(t, result3Err, sql.ErrNoRows.Error())
+}
+
+func TestManager_GetUserTasks(t *testing.T) {
+	godotenv.Load("../../../.env/.env")
+
+	d, err := testutils.GetTestDb(t, "../../../migrations")
+	if err != nil {
+		t.Errorf("setup db err: %v", err)
+		return
+	}
+	defer d.Close()
+
+	ctx := context.TODO()
+
+	now := time.Now()
+	data1 := option.GetUserTaskPoint{
+		TaskID:      "onboardingId",
+		State:       "completed",
+		Amount:      decimal.NewFromInt(1200),
+		CreatedAt:   now,
+		UserAddress: "0x123",
+		Point:       constants.OnboardingPoint,
+		TaskName:    "onboarding",
+	}
+
+	mgr := Manager{db: d}
+	userPointMgr := userpoint.NewManager(d)
+
+	if _, err := d.Exec(
+		`INSERT INTO task("id", "createdAt", "name", "pairAddress", "startAt") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("pairAddress") DO NOTHING;`,
+		data1.TaskID, time.Now(), data1.TaskName, nil, now,
+	); err != nil {
+		t.Errorf("insert task err: %v", err)
+		return
+	}
+	if err := mgr.Upsert(ctx, data1.UserAddress, data1.TaskID, data1.State, data1.Amount); err != nil {
+		t.Errorf("Upsert() error = %v", err)
+		return
+	}
+	if err := userPointMgr.UpsertForUserTask(ctx, data1.UserAddress, data1.TaskID, data1.Point); err != nil {
+		t.Errorf("UpsertForUserTask() error = %v", err)
+		return
+	}
+
+	type args struct {
+		ctx     context.Context
+		address string
+	}
+	tests := []struct {
+		name string
+		args args
+		want option.GetUserTaskPoint
+	}{
+		{
+			name: "query",
+			args: args{
+				ctx:     ctx,
+				address: data1.UserAddress,
+			},
+			want: data1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := mgr.GetUserTasks(tt.args.ctx, tt.args.address)
+			if err != nil {
+				t.Errorf("GetUserTasks() error = %v", err)
+				return
+			}
+
+			assert.Equal(t, tt.want.TaskID, result[0].TaskID)
+			assert.Equal(t, tt.want.State, result[0].State)
+			assert.Equal(t, tt.want.Amount, result[0].Amount)
+			assert.Equal(t, tt.want.UserAddress, result[0].UserAddress)
+			assert.Equal(t, tt.want.Point, result[0].Point)
+			assert.Equal(t, tt.want.TaskName, result[0].TaskName)
+			assert.Equal(t, tt.want.PairAddress, result[0].PairAddress)
+		})
+	}
 }
