@@ -117,19 +117,24 @@ func (t *SwapEventTask) subscribeByWS(
 
 	log.Printf("Listening Swap events for target pool: %s", task.PairAddress.String)
 
-	count := 0
 	for {
 		select {
 		case err := <-sub.Err():
 			log.Fatalf("Subscription error: %v", err)
 		case vLog := <-logs:
-			count += 1
-			if stop, err := t.isStopTask(ctx, vLog, endAt); stop || err != nil {
+			block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
+			if err != nil {
+				log.Printf("failed to get block: %v", err)
+				continue
+			}
+
+			if stop, err := t.isStopTask(ctx, block, endAt); stop || err != nil {
 				log.Fatalf("Subscription isStopTask error: %v", err)
 			}
 
-			t.handleEvent(ctx, vLog, contractABI)
-			fmt.Println("count", count)
+			if err := t.handleEvent(ctx, vLog, block, contractABI); err != nil {
+				log.Printf("failed to handle event: %v", err)
+			}
 		}
 	}
 }
@@ -162,7 +167,12 @@ func (t *SwapEventTask) subscribeByHTTP(
 		}
 
 		for _, vLog := range logs {
-			t.handleEvent(ctx, vLog, contractABI)
+			block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
+			if err != nil {
+				log.Printf("failed to get block: %v", err)
+				continue
+			}
+			t.handleEvent(ctx, vLog, block, contractABI)
 		}
 
 		// Update startBlock to the latest block number, so that the next query will continue to query new events
@@ -186,7 +196,7 @@ func (t *SwapEventTask) syncHistoryEvent(
 	poolAddress := common.HexToAddress(task.PairAddress.String)
 
 	fromBlock := big.NewInt(20504485)
-	endBlock := big.NewInt(20514485)
+	endBlock := big.NewInt(20524485)
 
 	// log.Printf("seaching start block number for start time: %s", task.StartAt)
 	// fromBlock, startBlockErr := t.getBlockByTimestamp(ctx, client, task.StartAt)
@@ -236,8 +246,12 @@ func (t *SwapEventTask) syncHistoryEvent(
 		}
 
 		for _, vLog := range logs {
-			fmt.Println("vvvvveeeee", vLog.Address)
-			t.handleEvent(ctx, vLog, contractABI)
+			block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
+			if err != nil {
+				log.Printf("failed to get block: %v", err)
+				continue
+			}
+			t.handleEvent(ctx, vLog, block, contractABI)
 		}
 
 		fromBlock.Set(toBlock)
@@ -256,14 +270,8 @@ func (t *SwapEventTask) getTaskEndAt(startAt time.Time) time.Time {
 }
 
 func (t *SwapEventTask) isStopTask(
-	ctx context.Context, vLog types.Log, endAt time.Time,
+	_ context.Context, block *types.Block, endAt time.Time,
 ) (bool, error) {
-
-	b := big.NewInt(int64(vLog.BlockNumber))
-	block, err := t.client.BlockByNumber(ctx, b)
-	if err != nil {
-		return false, err
-	}
 
 	blockTime := int64(block.Time())
 	if blockTime >= endAt.Unix() {
@@ -273,7 +281,7 @@ func (t *SwapEventTask) isStopTask(
 	return false, nil
 }
 
-func (t *SwapEventTask) handleEvent(ctx context.Context, vLog types.Log, contractABI abi.ABI) {
+func (t *SwapEventTask) handleEvent(ctx context.Context, vLog types.Log, block *types.Block, contractABI abi.ABI) error {
 	sender := common.HexToAddress(vLog.Topics[1].Hex())
 	to := common.HexToAddress(vLog.Topics[2].Hex())
 
@@ -282,34 +290,25 @@ func (t *SwapEventTask) handleEvent(ctx context.Context, vLog types.Log, contrac
 
 	err := contractABI.UnpackIntoInterface(&event, "Swap", vLog.Data)
 	if err != nil {
-		log.Printf("Failed to unpack log: %v", err)
-		return
+		return fmt.Errorf("failed to unpack log: %v", err)
 	}
 
 	amount0In, err := utils.BigIntToDecimal(event.Amount0In)
 	if err != nil {
-		log.Printf("Failed to big int to decimal: %v", err)
-		return
+		return fmt.Errorf("failed to big int to decimal: %v", err)
 	}
 	amount1In, err := utils.BigIntToDecimal(event.Amount1In)
 	if err != nil {
-		log.Printf("Failed to big int to decimal: %v", err)
-		return
+		return fmt.Errorf("failed to big int to decimal: %v", err)
 	}
 	amount0Out, err := utils.BigIntToDecimal(event.Amount0Out)
 	if err != nil {
-		log.Printf("Failed to big int to decimal: %v", err)
-		return
+		return fmt.Errorf("failed to big int to decimal: %v", err)
 	}
 	amount1Out, err := utils.BigIntToDecimal(event.Amount1Out)
 	if err != nil {
-		log.Printf("Failed to big int to decimal: %v", err)
-		return
-	}
-	block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
-	if err != nil {
-		log.Printf("Failed toget block: %v", err)
-		return
+		return fmt.Errorf("failed to big int to decimal: %v", err)
+
 	}
 
 	opt := option.TransactionUpsertOptions{
@@ -325,14 +324,14 @@ func (t *SwapEventTask) handleEvent(ctx context.Context, vLog types.Log, contrac
 	}
 	err = t.TransactionMgr.Upsert(ctx, opt)
 	if err != nil {
-		log.Printf("upsert transaction: %v", err)
-		return
+		return fmt.Errorf("upsert transaction: %v", err)
 	}
 
 	if err := t.UserTaskMgr.CheckOnboardingTask(ctx, sender.Hex()); err != nil {
-		log.Printf("handle event CheckOnboardingTask fail: %v", err)
-		return
+		return fmt.Errorf("handle event CheckOnboardingTask fail: %v", err)
 	}
+
+	return nil
 }
 
 func (t *SwapEventTask) getBlockByTimestamp(ctx context.Context, client *ethclient.Client, taskTime time.Time) (*big.Int, error) {
