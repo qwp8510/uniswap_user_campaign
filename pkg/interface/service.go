@@ -17,6 +17,7 @@ type UserTaskManager interface {
 	CheckOnboardingTask(ctx context.Context, address string) error
 	CheckSharePoolTasks(ctx context.Context) error
 	Upsert(ctx context.Context, address string, taskId string, state string, amount decimal.Decimal) error
+	GetUserTasks(ctx context.Context, address string) ([]option.GetUserTaskPoint, error)
 }
 
 type TransactionManager interface {
@@ -26,4 +27,5 @@ type TransactionManager interface {
 
 type UserPointManager interface {
 	UpsertForUserTask(ctx context.Context, address string, taskId string, point int) error
+	GetUserPointsForTask(ctx context.Context, taskID string) ([]model.UserPoint, error)
 }

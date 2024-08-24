@@ -9,6 +9,7 @@ import (
 	"tradingAce/pkg/constants"
 	iface "tradingAce/pkg/interface"
 	"tradingAce/pkg/model"
+	"tradingAce/pkg/model/option"
 	"tradingAce/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -112,6 +113,65 @@ func (m *Manager) CheckSharePoolTasks(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) GetUserTasks(ctx context.Context, address string) ([]option.GetUserTaskPoint, error) {
+	query := `
+SELECT 
+    ut."id" AS "id",
+    ut."createdAt" AS "createdAt",
+    ut."userAddress" AS "userAddress",
+    ut."taskId" AS "taskID",
+    ut."state" AS "state",
+    ut."amount" AS "amount",
+    up."point" AS "point",
+    t."name" AS "taskName",
+    t."pairAddress" AS "pairAddress"
+FROM 
+    "userTask" ut
+JOIN 
+    "userPoint" up 
+    ON ut."taskId" = up."taskId" 
+    AND ut."userAddress" = up."userAddress"
+JOIN 
+    "task" t
+    ON ut."taskId" = t."id"
+WHERE 
+    ut."userAddress" = $1;
+	`
+
+	result := make([]option.GetUserTaskPoint, 0)
+
+	stmt, err := m.db.Prepare(query)
+	if err != nil {
+		return result, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(address)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var data option.GetUserTaskPoint
+		rows.Scan(
+			&data.ID,
+			&data.CreatedAt,
+			&data.UserAddress,
+			&data.TaskID,
+			&data.State,
+			&data.Amount,
+			&data.Point,
+			&data.TaskName,
+			&data.PairAddress,
+		)
+
+		result = append(result, data)
+	}
+
+	return result, nil
 }
 
 func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error {
