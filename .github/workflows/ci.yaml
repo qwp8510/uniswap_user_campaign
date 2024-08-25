@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.extract_coverage.outputs.coverage }}
+
     services:
       trading-postgres:
         image: postgres:13
@@ -43,6 +46,14 @@ jobs:
 
       - name: < Run Unit Test >
         run: go test ./... -p 1 -parallel 1 -coverprofile cover.out && go tool cover -func=cover.out
+
+      - name: Extract coverage percentage
+        id: extract_coverage
+        run: |
+          # Extract the coverage percentage using grep and awk
+          coverage=$(grep "total:" coverage.txt | awk '{print $3}' | sed 's/%//')
+          echo "coverage=$coverage" >> $GITHUB_ENV
+          echo "::set-output name=coverage::$coverage"
 
   build:
     runs-on: ubuntu-latest
