@@ -9,9 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    outputs:
-      coverage: ${{ steps.extract_coverage.outputs.COV }}
-
     services:
       trading-postgres:
         image: postgres:13
@@ -50,7 +47,7 @@ jobs:
       - name: Extract coverage percentage
         id: extract_coverage
         run: |
-          echo "COV=$(go tool cover -func=cover.out | grep total)" >> $GITHUB_OUTPUT
+          echo "Test Coverage: $(go tool cover -func=cover.out | grep total)" >> $GITHUB_STEP_SUMMARY
 
   # build:
   #   runs-on: ubuntu-latest
