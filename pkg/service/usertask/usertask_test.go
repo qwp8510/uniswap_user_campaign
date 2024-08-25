@@ -712,7 +712,7 @@ func TestManager_GetUserTasks(t *testing.T) {
 
 			assert.Equal(t, tt.want.TaskID, result[0].TaskID)
 			assert.Equal(t, tt.want.State, result[0].State)
-			assert.Equal(t, tt.want.Amount, result[0].Amount)
+			assert.True(t, tt.want.Amount.Equal(result[0].Amount))
 			assert.Equal(t, tt.want.UserAddress, result[0].UserAddress)
 			assert.Equal(t, tt.want.Point, result[0].Point)
 			assert.Equal(t, tt.want.TaskName, result[0].TaskName)
