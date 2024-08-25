@@ -1,25 +1,78 @@
 version: "3"
 
 services:
+  trading-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trading-ace:latest
+    container_name: trading-ace-api
+    env_file:
+      - .env/.env
+    volumes:
+      - ./.env:/home/nonroot/.env:z
+    ports:
+      - "8080:8080"
+    command: /home/nonroot/app server
+    depends_on:
+      trading-postgres:
+        condition: service_healthy
+    networks:
+      - daniel-tradingAce-proxy
+
+  trading-task-listener:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trading-ace:latest
+    container_name: trading-ace-task-listener
+    volumes:
+      - ./.env:/home/nonroot/.env:z
+    env_file:
+      - .env/.env
+    command: /home/nonroot/app taskListener
+    depends_on:
+      trading-postgres:
+        condition: service_healthy
+    networks:
+      - daniel-tradingAce-proxy
+
+  trading-migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trading-ace:latest
+    container_name: trading-ace-migration
+    volumes:
+      - ./.env:/home/nonroot/.env:z
+    env_file:
+      - .env/.env
+    command: /home/nonroot/app migrate
+    depends_on:
+      trading-postgres:
+        condition: service_healthy
+    networks:
+      - daniel-tradingAce-proxy
+
   trading-postgres:
-    image: postgres:13
+    image: postgres:14
     restart: always
     env_file:
       - .env/.env
-    # volumes:
-    #   - daniel-tradingAce-db-data:/var/lib/postgresql/data
-    ports:
-      - "54321:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-q", "-d", "${POSTGRES_DB}", "-U", "${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    volumes:
+      - trading-db-data:/var/lib/postgresql/data
+    ports:
+      - "54321:5432"
     networks:
       - daniel-tradingAce-proxy
 
-# volumes:
-#   trading-db-data:
+volumes:
+  trading-db-data:
 networks:
   daniel-tradingAce-proxy:
     driver: bridge
