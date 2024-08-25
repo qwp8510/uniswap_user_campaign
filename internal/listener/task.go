@@ -39,10 +39,8 @@ type swapEvent struct {
 func (t *SwapEventTask) Listen() {
 	ctx := context.Background()
 
-	tasks, listErr := t.TaskMgr.GetSharePoolTask(ctx)
-	if listErr != nil {
-		log.Fatalf("list task pair address failed: %s", listErr)
-	}
+	cachedTaskIDs := make(map[string]struct{})
+	var mu sync.Mutex
 
 	// Parse ABI for Swap event
 	contractABI, err := abi.JSON(strings.NewReader(constants.UniswapSwapEventABI))
@@ -50,21 +48,44 @@ func (t *SwapEventTask) Listen() {
 		log.Fatalf("Failed to parse contract ABI: %v", err)
 	}
 
-	var wg sync.WaitGroup
+	// Create a ticker that ticks every 3 seconds
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
 
-	for _, task := range tasks {
-		wg.Add(1)
-
-		go func(task model.Task) {
-			defer wg.Done()
-			if err := t.subscribeToPool(ctx, contractABI, task); err != nil {
-				log.Printf("subscribeToPool error: %s", err)
-				return
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			tasks, listErr := t.TaskMgr.GetSharePoolTask(ctx)
+			if listErr != nil {
+				log.Printf("list task pair address failed: %s", listErr)
+				continue
 			}
-		}(task)
-	}
 
-	wg.Wait()
+			newTasks := []model.Task{}
+
+			mu.Lock()
+			for _, task := range tasks {
+				if _, exists := cachedTaskIDs[task.ID]; !exists {
+					// Task ID is new, add to cache and prepare for processing
+					cachedTaskIDs[task.ID] = struct{}{}
+					newTasks = append(newTasks, task)
+				}
+			}
+			mu.Unlock()
+
+			// Process new tasks
+			for _, task := range newTasks {
+				log.Printf("new task subscriber. pair address: %s, StartAt: %s", task.PairAddress.String, task.StartAt)
+				go func(task model.Task) {
+					if err := t.subscribeToPool(ctx, contractABI, task); err != nil {
+						log.Printf("subscribeToPool error: %s", err)
+					}
+				}(task)
+			}
+		}
+	}
 }
 
 func (t *SwapEventTask) subscribeToPool(
@@ -122,14 +143,17 @@ func (t *SwapEventTask) subscribeByWS(
 		case err := <-sub.Err():
 			log.Fatalf("Subscription error: %v", err)
 		case vLog := <-logs:
+			log.Printf("websocket subscriber received log, pair address: %s, block: %d \n", task.PairAddress.String, vLog.BlockNumber)
 			block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
 			if err != nil {
 				log.Printf("failed to get block: %v", err)
 				continue
 			}
 
-			if stop, err := t.isStopTask(ctx, block, endAt); stop || err != nil {
+			if stop, err := t.isStopTask(ctx, block, endAt); err != nil {
 				log.Fatalf("Subscription isStopTask error: %v", err)
+			} else if stop {
+				return
 			}
 
 			if err := t.handleEvent(ctx, vLog, block, contractABI); err != nil {
@@ -146,6 +170,7 @@ func (t *SwapEventTask) subscribeByHTTP(
 	startBlock *big.Int,
 ) {
 
+	endAt := t.getTaskEndAt(task.StartAt)
 	for {
 		latestBlock, err := t.client.BlockByNumber(context.Background(), nil)
 		if err != nil {
@@ -167,10 +192,16 @@ func (t *SwapEventTask) subscribeByHTTP(
 		}
 
 		for _, vLog := range logs {
+			log.Printf("http subscriber received log, pair address: %s, block: %d \n", task.PairAddress.String, vLog.BlockNumber)
 			block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
 			if err != nil {
 				log.Printf("failed to get block: %v", err)
 				continue
+			}
+			if stop, err := t.isStopTask(ctx, block, endAt); err != nil {
+				log.Fatalf("Subscription isStopTask error: %v", err)
+			} else if stop {
+				return
 			}
 			if err := t.handleEvent(ctx, vLog, block, contractABI); err != nil {
 				log.Printf("failed to handleEvent: %v", err)
@@ -249,6 +280,7 @@ func (t *SwapEventTask) syncHistoryEvent(
 		}
 
 		for _, vLog := range logs {
+			log.Printf("sync for history, pair address: %s, block: %d \n", task.PairAddress.String, vLog.BlockNumber)
 			block, err := t.client.BlockByNumber(ctx, big.NewInt(int64(vLog.BlockNumber)))
 			if err != nil {
 				log.Printf("failed to get block: %v", err)
