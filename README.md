@@ -1,7 +1,7 @@
 ## Support
 - [v] API: Get user tasks status 
 - [v] API: Get user points history for distributed tasks
-- [v] [Test coverage: 53.1%](https://github.com/qwp8510/uniswap_user_campaign/actions/runs/10548731588)
+- [v] [Test coverage: 53.1%](https://github.com/qwp8510/uniswap_user_campaign/actions/runs/10548759653)
 - [v] Support Onboarding Task
 - [v] Support Share Pool Task
 
