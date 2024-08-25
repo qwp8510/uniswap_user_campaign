@@ -30,7 +30,6 @@ func (m *Manager) Upsert(ctx context.Context, opt option.TransactionUpsertOption
 			"transactionAt" = EXCLUDED."transactionAt"
 	`
 
-	fmt.Println("in upsert")
 	_, err := m.db.ExecContext(
 		ctx,
 		query,
@@ -45,7 +44,6 @@ func (m *Manager) Upsert(ctx context.Context, opt option.TransactionUpsertOption
 		opt.ReceiverAddress,
 		opt.TransactionAt,
 	)
-	fmt.Println("out upsert")
 
 	return err
 }
