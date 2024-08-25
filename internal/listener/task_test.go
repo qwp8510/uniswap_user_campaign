@@ -8,6 +8,7 @@ import (
 	"time"
 	"tradingAce/internal/testutils"
 	"tradingAce/pkg/constants"
+	"tradingAce/pkg/core/db"
 	"tradingAce/pkg/service/task"
 	"tradingAce/pkg/service/transaction"
 	"tradingAce/pkg/service/userpoint"
@@ -90,6 +91,7 @@ func TestSwapEventTask_handleEvent(t *testing.T) {
 		return
 	}
 
+	db.Upgrade(d, "../../migrations")
 	if _, err := d.Exec(
 		`INSERT INTO task("id", "createdAt", "name", "pairAddress", "startAt")
 		SELECT $1, $2, $3, $4, $5
