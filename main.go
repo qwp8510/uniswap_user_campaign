@@ -14,7 +14,7 @@ var rootCmd = &cobra.Command{Use: "server cli"}
 func main() {
 	godotenv.Load(".env/.env")
 
-	rootCmd.AddCommand(cmd.MigrateCmd, cmd.TaskListenerCmd, cmd.DownCmd, cmd.ServerCmd)
+	rootCmd.AddCommand(cmd.MigrateCmd, cmd.TaskListenerCmd, cmd.DownCmd, cmd.ServerCmd, cmd.CheckSharePoolTaskCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
