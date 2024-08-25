@@ -172,7 +172,10 @@ func (t *SwapEventTask) subscribeByHTTP(
 				log.Printf("failed to get block: %v", err)
 				continue
 			}
-			t.handleEvent(ctx, vLog, block, contractABI)
+			if err := t.handleEvent(ctx, vLog, block, contractABI); err != nil {
+				log.Printf("failed to handleEvent: %v", err)
+			}
+
 		}
 
 		// Update startBlock to the latest block number, so that the next query will continue to query new events
@@ -251,7 +254,9 @@ func (t *SwapEventTask) syncHistoryEvent(
 				log.Printf("failed to get block: %v", err)
 				continue
 			}
-			t.handleEvent(ctx, vLog, block, contractABI)
+			if err := t.handleEvent(ctx, vLog, block, contractABI); err != nil {
+				log.Printf("failed to handleEvent: %v", err)
+			}
 		}
 
 		fromBlock.Set(toBlock)
