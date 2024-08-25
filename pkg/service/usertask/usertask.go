@@ -25,14 +25,21 @@ type Manager struct {
 // cache onboarding task
 var onboardingTask *model.Task
 
+func (m *Manager) setOnboardingTask(ctx context.Context) error {
+	t, err := m.taskMgr.GetOnboardingTask(ctx)
+	if err != nil {
+		return err
+	}
+
+	onboardingTask = &t
+	return nil
+}
+
 func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error {
 	if onboardingTask == nil {
-		t, err := m.taskMgr.GetOnboardingTask(ctx)
-		if err != nil {
+		if err := m.setOnboardingTask(ctx); err != nil {
 			return err
 		}
-
-		onboardingTask = &t
 	}
 
 	userTask, err := m.getUserTask(ctx, address, onboardingTask.ID)
@@ -81,6 +88,12 @@ func (m *Manager) CheckSharePoolTasks(ctx context.Context) error {
 	tasks, getSharePoolErr := m.taskMgr.GetSharePoolTask(ctx)
 	if getSharePoolErr != nil {
 		return getSharePoolErr
+	}
+
+	if onboardingTask == nil {
+		if err := m.setOnboardingTask(ctx); err != nil {
+			return err
+		}
 	}
 
 	for _, task := range tasks {

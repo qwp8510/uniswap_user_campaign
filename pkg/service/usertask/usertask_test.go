@@ -882,3 +882,104 @@ func TestManager_CheckFinishedOnboardingTask(t *testing.T) {
 	assert.Equal(t, "completed", ut1.State)
 	assert.True(t, decimal.NewFromInt(1000).Equal(ut1.Amount), "amount should be 1000")
 }
+
+func TestManager_CheckSharePoolTask(t *testing.T) {
+	godotenv.Load("../../../.env/.env")
+
+	d, err := testutils.GetTestDb(t, "../../../migrations")
+	if err != nil {
+		t.Errorf("setup db err: %v", err)
+		return
+	}
+	defer d.Close()
+
+	ctx := context.TODO()
+
+	trMgr := transaction.NewManager(d)
+	mgr := Manager{
+		db:             d,
+		taskMgr:        task.NewManager(d),
+		transactionMgr: trMgr,
+		userPointMgr:   userpoint.NewManager(d),
+	}
+
+	sender1 := "0x0000000000000000000000000000000000000000"
+
+	// init test transaction data
+	transactionAt1, parseErr := time.Parse("2006-01-02", "2024-07-02")
+	if parseErr != nil {
+		t.Errorf("parse time err: %v", parseErr)
+		return
+	}
+
+	if err := trMgr.Upsert(ctx, option.TransactionUpsertOptions{
+		BlockNum:        1,
+		PairAddress:     "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+		SenderAddress:   sender1,
+		Amount0In:       constants.UsdcPrecision.Mul(decimal.NewFromInt(1000)),
+		Amount1In:       constants.EthPrecision.Mul(decimal.NewFromInt(50)),
+		Amount0Out:      decimal.NewFromInt(30),
+		Amount1Out:      decimal.NewFromInt(40),
+		ReceiverAddress: "0x0000000000000000000000000000000000000000",
+		TransactionAt:   transactionAt1,
+	}); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+
+	// init sender onboarding user task
+	onboardingTask := setOnbardingTask()
+	if err := mgr.Upsert(ctx, sender1, onboardingTask.ID, "completed", decimal.NewFromInt(1000)); err != nil {
+		t.Errorf("Upsert err: %v", err)
+		return
+	}
+
+	startAt, parseErr := time.Parse("2006-01-02", "2024-07-01")
+	if parseErr != nil {
+		t.Errorf("Parse err: %v", err)
+		return
+	}
+
+	sharePoolTask := model.Task{
+		Name: sql.NullString{String: "share_pool", Valid: true},
+		PairAddress: sql.NullString{
+			String: "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+			Valid:  true,
+		},
+		StartAt: startAt,
+	}
+	if err := mgr.taskMgr.CreateSharePoolTask(ctx, sharePoolTask.PairAddress.String, sharePoolTask.StartAt); err != nil {
+		t.Errorf("CreateSharePoolTask err: %v", err)
+		return
+	}
+
+	if err := mgr.CheckSharePoolTasks(ctx); err != nil {
+		t.Errorf("checkSharePoolTask err: %v", err)
+	}
+
+	query := `
+		SELECT "id", "createdAt", "name", "pairAddress", "startAt"
+		FROM "task"
+		WHERE "name" = $1 AND "pairAddress" = $2;
+	`
+
+	var task model.Task
+	qErr := mgr.db.QueryRowContext(context.Background(), query, "share_pool", sharePoolTask.PairAddress).Scan(
+		&task.ID,
+		&task.CreatedAt,
+		&task.Name,
+		&task.PairAddress,
+		&task.StartAt,
+	)
+	if qErr != nil {
+		t.Error(qErr)
+		return
+	}
+
+	ut1, ut1Err := mgr.getUserTask(ctx, sender1, task.ID)
+	if ut1Err != nil {
+		t.Errorf("getUserTask 1 err: %v", ut1Err)
+		return
+	}
+	assert.Equal(t, "completed", ut1.State)
+}
