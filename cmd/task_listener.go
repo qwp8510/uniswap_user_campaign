@@ -22,10 +22,6 @@ func runTaskListener(_ *cobra.Command, _ []string) {
 	}
 	defer d.Close()
 
-	if err := db.Upgrade(d, "migrations"); err != nil {
-		panic(err)
-	}
-
 	s := service.NewService(d)
 
 	taskListener := listener.NewTaskListener(s.Task, s.Transaction, s.UserTask)

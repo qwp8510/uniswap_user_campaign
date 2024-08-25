@@ -21,10 +21,6 @@ func runServer(_ *cobra.Command, _ []string) {
 	}
 	defer d.Close()
 
-	if err := db.Upgrade(d, "migrations"); err != nil {
-		panic(err)
-	}
-
 	s := service.NewService(d)
 	server := rest.NewRestServer(s.Task, s.UserPoint, s.UserTask)
 
