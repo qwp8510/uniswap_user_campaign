@@ -107,7 +107,7 @@ SELECT
     t."pairAddress" AS "pairAddress"
 FROM 
     "userTask" ut
-JOIN 
+LEFT JOIN 
     "userPoint" up 
     ON ut."taskId" = up."taskId" 
     AND ut."userAddress" = up."userAddress"
