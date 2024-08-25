@@ -6,7 +6,7 @@ CREATE TABLE "userTask" (
     "userAddress" VARCHAR(120) NOT NULL,
     "taskId" VARCHAR(32) NOT NULL,
     "state" VARCHAR(15) NOT NULL,
-    "amount" BIGINT NOT NULL DEFAULT 0
+    "amount" NUMERIC(19, 4) NOT NULL DEFAULT 0
 );
 
 CREATE TABLE "userPoint" (
