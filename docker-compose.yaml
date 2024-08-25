@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: trading-ace:latest
+    restart: always
     container_name: trading-ace-api
     env_file:
       - .env/.env
@@ -25,6 +26,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: trading-ace:latest
+    restart: always
     container_name: trading-ace-task-listener
     volumes:
       - ./.env:/home/nonroot/.env:z
