@@ -1,0 +1,47 @@
+name: Continuous Integration Workflow
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'ci'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      trading-postgres:
+        image: postgres:13
+        env:
+          POSTGRES_HOST: trading-postgres
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: postgres
+          POSTGRES_TESTDB: testdb
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: "000000"
+        ports:
+          - 5672:5672
+
+    env:
+      SUBSCRIBE_MODE: "ws"
+      FIRST_TASK_START: "2024-07-01"
+
+      POSTGRES_HOST: trading-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: postgres
+      POSTGRES_TESTDB: testdb
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "000000"
+
+    container:
+      image: golang:1.21.0-bookworm
+
+    steps:
+      - name: < Checkout to Source Code >
+        uses: actions/checkout@v3
+
+      - name: < show env >
+        run: echo $API_KEY
+
+      - name: < Run Unit Test >
+        run: go test ./... -coverprofile cover.out && go tool cover -func=cover.out
