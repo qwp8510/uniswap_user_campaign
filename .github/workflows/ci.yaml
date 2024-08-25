@@ -50,7 +50,7 @@ jobs:
       - name: Extract coverage percentage
         id: extract_coverage
         run: |
-          echo "COV=go tool cover -func=cover.out grep total" >> $GITHUB_OUTPUT
+          echo "COV=$(go tool cover -func=cover.out | grep total)" >> $GITHUB_OUTPUT
 
   # build:
   #   runs-on: ubuntu-latest
