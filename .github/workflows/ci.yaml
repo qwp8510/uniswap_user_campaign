@@ -25,6 +25,7 @@ jobs:
     env:
       SUBSCRIBE_MODE: "ws"
       FIRST_TASK_START: "2024-07-01"
+      API_KEY: ${{ secrets.API_KEY }}
 
       POSTGRES_HOST: trading-postgres
       POSTGRES_PORT: 5432
@@ -39,9 +40,6 @@ jobs:
     steps:
       - name: < Checkout to Source Code >
         uses: actions/checkout@v3
-
-      - name: < show env >
-        run: echo $API_KEY
 
       - name: < Run Unit Test >
         run: go test ./... -coverprofile cover.out && go tool cover -func=cover.out
