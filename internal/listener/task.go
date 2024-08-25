@@ -195,33 +195,33 @@ func (t *SwapEventTask) syncHistoryEvent(
 
 	poolAddress := common.HexToAddress(task.PairAddress.String)
 
-	fromBlock := big.NewInt(20504485)
-	endBlock := big.NewInt(20524485)
+	// fromBlock := big.NewInt(20504485)
+	// endBlock := big.NewInt(20524485)
 
-	// log.Printf("seaching start block number for start time: %s", task.StartAt)
-	// fromBlock, startBlockErr := t.getBlockByTimestamp(ctx, client, task.StartAt)
-	// if startBlockErr != nil {
-	// 	return big.NewInt(0), startBlockErr
-	// }
+	log.Printf("seaching start block number for start time: %s", task.StartAt)
+	fromBlock, startBlockErr := t.getBlockByTimestamp(ctx, client, task.StartAt)
+	if startBlockErr != nil {
+		return big.NewInt(0), startBlockErr
+	}
 
-	// endAt := t.getTaskEndAt(task.StartAt)
-	// endBlock := big.NewInt(0)
-	// if endAt.After(time.Now()) {
-	// 	latestBlock, err := client.BlockByNumber(ctx, nil)
-	// 	if err != nil {
-	// 		return big.NewInt(0), err
-	// 	}
+	endAt := t.getTaskEndAt(task.StartAt)
+	endBlock := big.NewInt(0)
+	if endAt.After(time.Now()) {
+		latestBlock, err := client.BlockByNumber(ctx, nil)
+		if err != nil {
+			return big.NewInt(0), err
+		}
 
-	// 	endBlock = latestBlock.Number()
+		endBlock = latestBlock.Number()
 
-	// } else {
-	// 	log.Printf("seaching end block number for end time: %s", endAt)
-	// 	b, endBlockErr := t.getBlockByTimestamp(ctx, client, endAt)
-	// 	if endBlockErr != nil {
-	// 		return big.NewInt(0), endBlockErr
-	// 	}
-	// 	endBlock = b
-	// }
+	} else {
+		log.Printf("seaching end block number for end time: %s", endAt)
+		b, endBlockErr := t.getBlockByTimestamp(ctx, client, endAt)
+		if endBlockErr != nil {
+			return big.NewInt(0), endBlockErr
+		}
+		endBlock = b
+	}
 
 	// Filter query for Swap events in the Uniswap pool
 	batch := int64(10000)
