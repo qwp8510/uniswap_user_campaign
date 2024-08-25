@@ -569,6 +569,7 @@ func TestManager_CheckOnboardingTask(t *testing.T) {
 	}
 	assert.Equal(t, onboardingTask.ID, ut1.TaskID)
 	assert.Equal(t, "completed", ut1.State)
+	assert.True(t, decimal.NewFromInt(1100).Equal(ut1.Amount), "amount should be 1100")
 	var result1 model.UserPoint
 	if err := d.QueryRow(
 		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
@@ -597,6 +598,7 @@ func TestManager_CheckOnboardingTask(t *testing.T) {
 	}
 	assert.Equal(t, onboardingTask.ID, ut2.TaskID)
 	assert.Equal(t, "completed", ut2.State)
+	assert.True(t, decimal.NewFromInt(1000).Equal(ut2.Amount), "amount should be 1000")
 	var result2 model.UserPoint
 	if err := d.QueryRow(
 		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 
@@ -625,6 +627,7 @@ func TestManager_CheckOnboardingTask(t *testing.T) {
 	}
 	assert.Equal(t, onboardingTask.ID, ut3.TaskID)
 	assert.Equal(t, "pending", ut3.State)
+	assert.True(t, decimal.NewFromInt(500).Equal(ut3.Amount), "amount should be 5000")
 	var result3 model.UserPoint
 	result3Err := d.QueryRow(
 		`SELECT "userAddress", "taskId", "point" FROM "userPoint" 

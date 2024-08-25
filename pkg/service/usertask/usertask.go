@@ -35,11 +35,9 @@ func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error
 		onboardingTask = &t
 	}
 
-	notExist := false
 	userTask, err := m.getUserTask(ctx, address, onboardingTask.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			notExist = true
 			userTask = model.UserTask{
 				ID:          utils.GenDBID(),
 				UserAddress: address,
@@ -59,40 +57,20 @@ func (m *Manager) CheckOnboardingTask(ctx context.Context, address string) error
 	if err != nil {
 		return fmt.Errorf("failed to GetUserUSDC: %v", err)
 	}
+	userTask.Amount = amount.Div(constants.UsdcPrecision)
 
 	threshold := decimal.NewFromFloat(1000.00).Mul(constants.UsdcPrecision) // 1000 USDC
 	if amount.GreaterThanOrEqual(threshold) {
 		userTask.State = "completed"
 	}
 
-	if notExist {
-		query := `
-			INSERT INTO "userTask" ("id", "userAddress", "taskId", "state")
-			VALUES ($1, $2, $3, $4);
-		`
-
-		_, err := m.db.ExecContext(ctx, query, userTask.ID, userTask.UserAddress, userTask.TaskID, userTask.State)
-		if err != nil {
-			return fmt.Errorf("failed to create user task: %v", err)
-		}
-		if userTask.State == "completed" {
-			if err := m.userPointMgr.UpsertForUserTask(ctx, userTask.UserAddress, onboardingTask.ID, constants.OnboardingPoint); err != nil {
-				log.Printf("checkSharePoolTask upsert point fail: %v", err)
-			}
-		}
-	} else {
-		query := `
-			UPDATE "userTask" SET "state" = $1 WHERE "id" = $2;
-		`
-
-		_, err := m.db.ExecContext(ctx, query, userTask.State, userTask.ID)
-		if err != nil {
-			return fmt.Errorf("failed to update user task: %v", err)
-		}
-		if userTask.State == "completed" {
-			if err := m.userPointMgr.UpsertForUserTask(ctx, userTask.UserAddress, onboardingTask.ID, constants.OnboardingPoint); err != nil {
-				log.Printf("checkSharePoolTask upsert point fail: %v", err)
-			}
+	if err := m.Upsert(ctx, userTask.UserAddress, userTask.TaskID, userTask.State, userTask.Amount); err != nil {
+		return fmt.Errorf("failed to create user task: %v", err)
+	}
+	if userTask.State == "completed" {
+		if err := m.userPointMgr.UpsertForUserTask(ctx, userTask.UserAddress, onboardingTask.ID, constants.OnboardingPoint); err != nil {
+			log.Printf("checkSharePoolTask upsert point fail: %v", err)
+			return err
 		}
 	}
 
@@ -233,7 +211,6 @@ func (m *Manager) checkSharePoolTask(ctx context.Context, task model.Task) error
 
 		for sender, volume := range senderVolumes {
 			if !totalVolumeUSD.IsZero() {
-				fmt.Println(sender, volume, totalVolumeUSD)
 				proportion := volume.Div(totalVolumeUSD)
 				points := proportion.Mul(constants.PointsPerWeek)
 				senderPoints[sender] = senderPoints[sender].Add(points)
