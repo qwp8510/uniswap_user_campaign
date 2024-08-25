@@ -2,6 +2,7 @@ package iface
 
 import (
 	"context"
+	"time"
 	"tradingAce/pkg/model"
 	"tradingAce/pkg/model/option"
 
@@ -11,6 +12,7 @@ import (
 type TaskManager interface {
 	GetOnboardingTask(ctx context.Context) (model.Task, error)
 	GetSharePoolTask(ctx context.Context) ([]model.Task, error)
+	CreateSharePoolTask(ctx context.Context, pairAddress string, startAt time.Time) error
 }
 
 type UserTaskManager interface {

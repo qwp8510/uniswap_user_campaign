@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"net/http"
+	"time"
 	iface "tradingAce/pkg/interface"
 
 	"github.com/gin-gonic/gin"
@@ -36,6 +37,33 @@ func (s *RestServer) GetUserPoints(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func (s *RestServer) CreateSharePoolTask(c *gin.Context) {
+	type body struct {
+		Address string `json:"address"`
+		StartAt string `json:"startAt"`
+	}
+	ctx := context.Background()
+
+	var b body
+	if err := c.BindJSON(&b); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	startAt, parseErr := time.Parse("2006-01-02", b.StartAt)
+	if parseErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": parseErr.Error()})
+		return
+	}
+
+	if err := s.TaskMgr.CreateSharePoolTask(ctx, b.Address, startAt); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, "ok")
 }
 
 func NewRestServer(

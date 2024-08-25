@@ -27,6 +27,7 @@ func runServer(_ *cobra.Command, _ []string) {
 	r := gin.Default()
 	r.GET("/userTasks/:address", server.GetUserTasks)
 	r.GET("/userPoints/*taskId", server.GetUserPoints)
+	r.POST("/sharePoolTask", server.CreateSharePoolTask)
 
 	r.Run(":8080")
 }
