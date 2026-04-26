@@ -1,14 +1,32 @@
-## Support
-- [v] API: Get user tasks status 
-- [v] API: Get user points history for distributed tasks
-- [v] [Test coverage: 53.1%](https://github.com/qwp8510/uniswap_user_campaign/actions/runs/10548759653)
-- [v] Support Onboarding Task
-- [v] Support Share Pool Task
+## Overview
 
-- [v] Support both subscriptions over WebSockets or HTTP API
-- [v] Support real-time calculation when action happens(for onboarding task)
-- [v] Support dynamic adding Share pool task based on different pairs
-- [v] Github action CI pipeline (run test on PR, build image, etc.)
+This project is a backend service that powers a **user incentive campaign on Uniswap**, designed to track on-chain activity and reward users based on their trading behavior.
+
+The system monitors swaps on a target Uniswap pool and translates user activity into **points**, which are later used for reward distribution. It simulates how real-world Web3 growth campaigns (e.g. liquidity mining, trading incentives) are implemented from a backend perspective.
+
+### Key Ideas
+
+* **On-chain activity tracking**
+  Listen to Uniswap V2 pool events and aggregate user swap volume in USD.
+
+* **Task-based campaign system**
+  Users complete predefined tasks to earn points:
+
+  * Onboarding task (first milestone)
+  * Weekly share-pool tasks (volume-based rewards)
+
+* **Points & reward distribution**
+  Points are calculated based on user contribution and distributed proportionally.
+
+* **Flexible campaign lifecycle**
+  Supports both:
+
+  * Backtesting historical data
+  * Running in real-time mode for active campaigns
+
+## 📌 Notes
+
+This project is inspired by real-world trading incentive campaigns commonly used in DeFi ecosystems.
 
 ## Setup Env
 1. copy environment file
